@@ -1,0 +1,25 @@
+name: 'DSH Harness Checkup'
+description: 'Run a DSH headless AI five-dimension checkup on the latest commit; publishes the report to the step summary. Adapted from Qoder qoder-action (see LICENSE-NOTICE.md).'
+branding:
+  icon: 'check-circle'
+  color: 'green'
+
+inputs:
+  diff-bytes:
+    description: 'Max bytes of the commit diff embedded into the prompt (overflow truncated)'
+    required: false
+    default: '50000'
+  extra-task:
+    description: 'Optional extra instruction appended to the checkup task'
+    required: false
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    - name: Run DSH headless checkup
+      shell: bash
+      env:
+        DIFF_BYTES: ${{ inputs.diff-bytes }}
+        EXTRA_TASK: ${{ inputs.extra-task }}
+      run: ${{ github.action_path }}/scripts/run-checkup.sh
