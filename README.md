@@ -18,7 +18,7 @@ jobs:
           fetch-depth: 2        # 需要前驱提交来计算 diff
       - uses: 63847051/dsh-action@v1
         env:
-          DEEPSEEK_API_KEY: ${{ secrets.DEPSEEK_API_KEY }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
 ```
 
 ## 前置条件
