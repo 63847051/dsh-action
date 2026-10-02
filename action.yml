@@ -22,4 +22,4 @@ runs:
       env:
         DIFF_BYTES: ${{ inputs.diff-bytes }}
         EXTRA_TASK: ${{ inputs.extra-task }}
-      run: ${{ github.action_path }}/scripts/run-checkup.sh
+      run: bash ${{ github.action_path }}/scripts/run-checkup.sh
