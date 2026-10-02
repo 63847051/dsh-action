@@ -24,7 +24,7 @@ jobs:
 ## 前置条件
 
 1. **DEEPSEEK_API_KEY secret**:在调用方仓库 Settings → Secrets and variables → Actions 添加 `DEEPSEEK_API_KEY`(DeepSeek 平台 key,platform.deepseek.com)。本 Action 仓库自身不需要任何密钥。
-2. 私有 Action:同账号下的私有仓库可直接 `uses:`;跨账号使用需对方可见本仓库。
+2. **公开 Action**(2026-10-02 用户裁决转公开):GitHub 规则——私有 Action 无法被其他仓库 `uses:`(调用方 GITHUB_TOKEN 只开自己仓库的门);本仓库无密钥无隐私,公开后任何仓库可用。公开仓库的 Actions 运行时长免费。
 
 ## 输入
 
