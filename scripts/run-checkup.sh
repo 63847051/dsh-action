@@ -77,6 +77,11 @@ echo "::endgroup::"
   fi
 } >> "$GITHUB_STEP_SUMMARY"
 
+# v1.1: also echo the report into the step log (permanent, API-readable audit copy)
+echo "::group::五维体检报告(日志副本,与 step summary 相同)"
+cat "$RUN_DIR/report.out"
+echo "::endgroup::"
+
 if [ "$RC" -ne 0 ] && [ ! -s "$RUN_DIR/report.out" ]; then
   echo "::error::dsh headless failed (exit=$RC) and produced no report. See stderr in the step summary."
   exit 1
