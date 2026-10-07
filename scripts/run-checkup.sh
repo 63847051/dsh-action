@@ -19,8 +19,37 @@ fi
 
 DIFF_BYTES="${DIFF_BYTES:-50000}"
 RUN_DIR="${RUNNER_TEMP:?RUNNER_TEMP is not set}/dsh-action-run"
-mkdir -p "$RUN_DIR"
+MASKED_DIR="$RUN_DIR/masked"
+mkdir -p "$RUN_DIR" "$MASKED_DIR"
 OUT="${GITHUB_OUTPUT:-/dev/null}"
+
+# --- secret masking (AC-A4-4) -------------------------------------------------
+# EVERY text sink below goes through this one function (step summary, step log copy, report_text,
+# report_file), so there is no "masked the summary but forgot the log" gap.
+# Rules: (1) the literal DEEPSEEK_API_KEY value - regex-metachar safe, matched via awk index();
+#        (2) key-name patterns: *_KEY/_TOKEN/_SECRET/_PASSWORD/_CREDENTIAL = value;
+#        (3) Authorization: <x>, Bearer <x>, and sk- prefixed tokens.
+# The unmasked originals stay local at $RUN_DIR/report.{out,err} (runner temp, never published).
+mask_stream() {
+  if [ -n "${DEEPSEEK_API_KEY:-}" ]; then
+    awk '{
+      secret = ENVIRON["DEEPSEEK_API_KEY"]
+      out = ""; line = $0
+      while ((i = index(line, secret)) > 0) {
+        out = out substr(line, 1, i - 1) "[REDACTED]"
+        line = substr(line, i + length(secret))
+      }
+      print out line
+    }'
+  else
+    cat
+  fi | sed -E \
+      -e 's/([A-Za-z0-9_]*(KEY|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL)[A-Za-z0-9_]*[[:space:]]*[:=][[:space:]]*)[^[:space:]]+/\1[REDACTED]/Ig' \
+      -e 's/(Authorization:[[:space:]]*)[^[:space:]]+/\1[REDACTED]/Ig' \
+      -e 's/(Bearer[[:space:]]+)[A-Za-z0-9._~+\/=-]+/\1[REDACTED]/Ig' \
+      -e 's/sk-[A-Za-z0-9_-]{8,}/[REDACTED]/g'
+}
+mask_file() { mask_stream < "$1" > "$2"; }
 
 # --- outputs (see action.yml `outputs:`; composite requires steps.<id>.outputs -> outputs.value) ---
 write_output() { printf '%s=%s\n' "$1" "$2" >> "$OUT"; }
@@ -80,42 +109,46 @@ set -e
 echo "headless exit code: $RC"
 echo "::endgroup::"
 
+# Mask once, then publish only from the masked copies (every sink shares these).
+mask_file "$RUN_DIR/report.out" "$MASKED_DIR/report.out"
+mask_file "$RUN_DIR/report.err" "$MASKED_DIR/report.err"
+
 {
   echo "# DSH 五维体检报告"
   echo ""
-  if [ -s "$RUN_DIR/report.out" ]; then
-    cat "$RUN_DIR/report.out"
+  if [ -s "$MASKED_DIR/report.out" ]; then
+    cat "$MASKED_DIR/report.out"
   else
     echo "_headless 未产出报告(exit=$RC),stderr 如下:_"
   fi
-  if [ -s "$RUN_DIR/report.err" ]; then
+  if [ -s "$MASKED_DIR/report.err" ]; then
     echo ""
-    echo "<details><summary>headless stderr</summary>"
+    echo "<details><summary>headless stderr (secrets masked)</summary>"
     echo ""
     echo '```'
-    cat "$RUN_DIR/report.err"
+    cat "$MASKED_DIR/report.err"
     echo '```'
     echo "</details>"
   fi
 } >> "$GITHUB_STEP_SUMMARY"
 
 # v1.1: also echo the report into the step log (permanent, API-readable audit copy)
-echo "::group::五维体检报告(日志副本,与 step summary 相同)"
-cat "$RUN_DIR/report.out"
+echo "::group::五维体检报告(日志副本,与 step summary 相同;密钥已掩码)"
+cat "$MASKED_DIR/report.out"
 echo "::endgroup::"
 
 # ---- publish outputs on BOTH the success and the failure path (AC-A4-1 / AC-A4-5) ----
 write_output exit_code "$RC"
-write_output_multiline report_text "$RUN_DIR/report.out"
-if [ -s "$RUN_DIR/report.out" ]; then
-  write_output report_file "$RUN_DIR/report.out"
+write_output_multiline report_text "$MASKED_DIR/report.out"
+if [ -s "$MASKED_DIR/report.out" ]; then
+  write_output report_file "$MASKED_DIR/report.out"
   write_output error ""
 else
   write_output report_file ""
   write_output error "dsh headless failed (exit=$RC) and produced no report; see stderr in the step summary"
 fi
 
-if [ "$RC" -ne 0 ] && [ ! -s "$RUN_DIR/report.out" ]; then
+if [ "$RC" -ne 0 ] && [ ! -s "$MASKED_DIR/report.out" ]; then
   echo "::error::dsh headless failed (exit=$RC) and produced no report. See stderr in the step summary."
   exit 1
 fi

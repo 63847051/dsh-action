@@ -47,6 +47,7 @@ jobs:
 
 另外:
 
+- **密钥掩码(T2.4)**:step summary、step log 副本、`report_text`、`report_file` **共用同一个掩码函数**,规则 = ①`DEEPSEEK_API_KEY` 的字面值(按 `index()` 匹配,不受正则元字符影响) ②键名模式(`*_KEY`/`*_TOKEN`/`*_SECRET`/`*_PASSWORD`/`*_CREDENTIAL` 的 `=`/`:` 赋值) ③`Authorization:`、`Bearer`、`sk-` 前缀。未掩码原件只留在 runner 临时目录(`$RUNNER_TEMP/dsh-action-run/report.{out,err}`),不上 summary、不进日志
 - 报告始终写入该步骤的 **step summary**(运行页自动展示),并同时打进 step log(可 API 读取的审计副本)
 - headless 失败且无报告时,stderr 一并附在摘要折叠区,**并且** Action 置为失败(此时 `error` 有值)
 - 注意:composite action 的 `outputs` 不会自动透出,必须在 `action.yml` 写全 `steps.<id>.outputs → outputs.<name>.value` 两层映射;本仓库已按此实现

@@ -20,10 +20,10 @@ inputs:
 
 outputs:
   report_file:
-    description: 'Absolute path of the generated report file (empty when no report was produced)'
+    description: 'Absolute path of the generated report file, secrets masked (empty when no report was produced). The unmasked original stays local in the runner temp.'
     value: ${{ steps.checkup.outputs.report_file }}
   report_text:
-    description: 'Report text produced by the checkup (empty when no report was produced)'
+    description: 'Report text produced by the checkup, secrets masked (empty when no report was produced)'
     value: ${{ steps.checkup.outputs.report_text }}
   exit_code:
     description: 'Exit code of the dsh headless run (0 = success)'
