@@ -13,13 +13,33 @@ inputs:
     description: 'Optional extra instruction appended to the checkup task'
     required: false
     default: ''
+  dsh-version:
+    description: 'npm version of @deepseek-ai/dsh to install. Pinned so a run is reproducible and auditable; bump deliberately.'
+    required: false
+    default: '0.2.0-rc.2'
+
+outputs:
+  report_file:
+    description: 'Absolute path of the generated report file (empty when no report was produced)'
+    value: ${{ steps.checkup.outputs.report_file }}
+  report_text:
+    description: 'Report text produced by the checkup (empty when no report was produced)'
+    value: ${{ steps.checkup.outputs.report_text }}
+  exit_code:
+    description: 'Exit code of the dsh headless run (0 = success)'
+    value: ${{ steps.checkup.outputs.exit_code }}
+  error:
+    description: 'Error message when the checkup failed without producing a report'
+    value: ${{ steps.checkup.outputs.error }}
 
 runs:
   using: composite
   steps:
     - name: Run DSH headless checkup
+      id: checkup
       shell: bash
       env:
         DIFF_BYTES: ${{ inputs.diff-bytes }}
         EXTRA_TASK: ${{ inputs.extra-task }}
+        DSH_VERSION: ${{ inputs.dsh-version }}
       run: bash ${{ github.action_path }}/scripts/run-checkup.sh

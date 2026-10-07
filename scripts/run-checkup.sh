@@ -1,8 +1,16 @@
 #!/usr/bin/env bash
-# DSH Harness Checkup - composite action runner (v1)
-# Route: npm @deepseek-ai/dsh@0.2.0-rc.2 (verified on ubuntu-latest by T5.0 probe v2,
-# run 36880871917; dsh-headless@0.0.1-rc.1 is NOT installable - unpublished dep).
+# DSH Harness Checkup - composite action runner
+# Route: npm @deepseek-ai/dsh, version supplied by the `dsh-version` input (env DSH_VERSION) -
+# the default pin lives in action.yml, so this script carries no version literal.
+# Verified on ubuntu-latest by the T5.0 probe (run 36880871917); @deepseek-ai/dsh-headless
+# 0.0.1-rc.1 is NOT installable (unpublished dep dsh-code-runtime-worker, npm 404).
 set -euo pipefail
+
+DSH_VERSION="${DSH_VERSION:-}"
+if [ -z "$DSH_VERSION" ]; then
+  echo "::error::DSH_VERSION is empty. It comes from the action input dsh-version (see action.yml)."
+  exit 1
+fi
 
 if [ -z "${DEEPSEEK_API_KEY:-}" ]; then
   echo "::error::DEEPSEEK_API_KEY is not set. Add it as a secret in the caller repo and pass it via job-level env."
@@ -10,17 +18,31 @@ if [ -z "${DEEPSEEK_API_KEY:-}" ]; then
 fi
 
 DIFF_BYTES="${DIFF_BYTES:-50000}"
-RUN_DIR="$RUNNER_TEMP/dsh-action-run"
+RUN_DIR="${RUNNER_TEMP:?RUNNER_TEMP is not set}/dsh-action-run"
 mkdir -p "$RUN_DIR"
+OUT="${GITHUB_OUTPUT:-/dev/null}"
 
-echo "::group::Install DSH CLI (npm @deepseek-ai/dsh@0.2.0-rc.2)"
+# --- outputs (see action.yml `outputs:`; composite requires steps.<id>.outputs -> outputs.value) ---
+write_output() { printf '%s=%s\n' "$1" "$2" >> "$OUT"; }
+write_output_multiline() {
+  local name="$1" file="$2"
+  if [ -s "$file" ]; then
+    { printf '%s<<%s\n' "$name" 'DSH_REPORT_EOF'; cat "$file"; printf '\n%s\n' 'DSH_REPORT_EOF'; } >> "$OUT"
+  else
+    printf '%s=\n' "$name" >> "$OUT"
+  fi
+}
+
+echo "::group::Install DSH CLI (npm @deepseek-ai/dsh@$DSH_VERSION)"
 if [ ! -d "$RUN_DIR/node_modules/@deepseek-ai/dsh" ]; then
   cd "$RUN_DIR"
   npm init -y >/dev/null
-  npm install @deepseek-ai/dsh@0.2.0-rc.2 --no-audit --no-fund
+  npm install "@deepseek-ai/dsh@$DSH_VERSION" --no-audit --no-fund
 else
   echo "cached"
 fi
+INSTALLED_VERSION="$(node -p "require('$RUN_DIR/node_modules/@deepseek-ai/dsh/package.json').version" 2>/dev/null || echo unknown)"
+echo "installed @deepseek-ai/dsh@$INSTALLED_VERSION"
 echo "::endgroup::"
 
 # Diff of the latest commit (needs checkout with fetch-depth >= 2).
@@ -81,6 +103,17 @@ echo "::endgroup::"
 echo "::group::五维体检报告(日志副本,与 step summary 相同)"
 cat "$RUN_DIR/report.out"
 echo "::endgroup::"
+
+# ---- publish outputs on BOTH the success and the failure path (AC-A4-1 / AC-A4-5) ----
+write_output exit_code "$RC"
+write_output_multiline report_text "$RUN_DIR/report.out"
+if [ -s "$RUN_DIR/report.out" ]; then
+  write_output report_file "$RUN_DIR/report.out"
+  write_output error ""
+else
+  write_output report_file ""
+  write_output error "dsh headless failed (exit=$RC) and produced no report; see stderr in the step summary"
+fi
 
 if [ "$RC" -ne 0 ] && [ ! -s "$RUN_DIR/report.out" ]; then
   echo "::error::dsh headless failed (exit=$RC) and produced no report. See stderr in the step summary."

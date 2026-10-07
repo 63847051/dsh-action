@@ -32,14 +32,27 @@ jobs:
 |---|---|---|
 | `diff-bytes` | `50000` | 嵌入提示词的 diff 最大字节数(超出截断,提示 AI 自行查证全量) |
 | `extra-task` | 空 | 追加到体检任务后的补充指令 |
+| `dsh-version` | `0.2.0-rc.2` | 安装的 `@deepseek-ai/dsh` npm 版本。**固定默认值**是为了可复现与可审计,升级请显式改这一行 |
 
 ## 输出
 
-- 报告写入该步骤的 **step summary**(运行页自动展示)
-- headless 失败时 stderr 一并附在摘要的折叠区,且 Action 置为失败
+调用方用 `steps.<step-id>.outputs.<name>` 读取(见 [examples/caller-checkup.yml](examples/caller-checkup.yml) 的最小可用 caller,它会对空值直接失败):
+
+| 输出 | 说明 |
+|---|---|
+| `report_file` | 报告文件的绝对路径(`$RUNNER_TEMP/dsh-action-run/report.out`);**未产出报告时为空字符串** |
+| `report_text` | 报告正文(多行原样透出);未产出报告时为空 |
+| `exit_code` | `dsh headless` 的退出码(`0` = 成功) |
+| `error` | 失败且**无报告**时的错误说明;正常路径为空字符串 |
+
+另外:
+
+- 报告始终写入该步骤的 **step summary**(运行页自动展示),并同时打进 step log(可 API 读取的审计副本)
+- headless 失败且无报告时,stderr 一并附在摘要折叠区,**并且** Action 置为失败(此时 `error` 有值)
+- 注意:composite action 的 `outputs` 不会自动透出,必须在 `action.yml` 写全 `steps.<id>.outputs → outputs.<name>.value` 两层映射;本仓库已按此实现
 
 ## 实现注记
 
-- 运行路线:`npm install @deepseek-ai/dsh@0.2.0-rc.2` → `dsh headless "<体检任务>"`(T5.0 探针实测:ubuntu-latest 540 包 1 分钟装通,run 36880871917)
+- 运行路线:`npm install "@deepseek-ai/dsh@$DSH_VERSION"` → `dsh headless "<体检任务>"`(T5.0 探针实测:ubuntu-latest 540 包 1 分钟装通,run 36880871917);版本由 `dsh-version` 输入注入,脚本内**不保留版本字面量**,装完打印实际版本以便对账
 - `@deepseek-ai/dsh-headless@0.0.1-rc.1` 因上游未发布依赖而不可安装(dsh-code-runtime-worker,npm 404)——不走该路线
 - headless 超时 8 分钟;`dsh-action` 不修改被检仓库任何文件

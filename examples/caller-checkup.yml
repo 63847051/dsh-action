@@ -1,0 +1,31 @@
+name: dsh-action caller (minimal, asserts outputs)
+# 最小 caller（REQ-A4 需求 5 / AC-A4-6）：真实读取 composite action 的 outputs。
+# composite 三层映射缺一不可：内部 step `id: checkup` + action.yml `outputs.<name>.value: ${{ steps.checkup.outputs.<name> }}`
+# + caller 侧 `steps.checkup.outputs.<name>`；任一缺失，下面的断言会失败而不是静默空值。
+on:
+  workflow_dispatch:
+
+jobs:
+  checkup:
+    runs-on: ubuntu-latest
+    outputs:
+      report_file: ${{ steps.checkup.outputs.report_file }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: DSH five-dimension checkup
+        id: checkup
+        uses: 63847051/dsh-action@v1
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+      - name: Assert mapped outputs are readable
+        run: |
+          set -euo pipefail
+          echo "report_file=${{ steps.checkup.outputs.report_file }}"
+          echo "exit_code=${{ steps.checkup.outputs.exit_code }}"
+          echo "error=${{ steps.checkup.outputs.error }}"
+          test -n "${{ steps.checkup.outputs.report_file }}" \
+            || { echo "::error::report_file output is empty - composite outputs mapping is broken"; exit 1; }
+          test -f "${{ steps.checkup.outputs.report_file }}" \
+            || { echo "::error::report_file points to a missing file"; exit 1; }
